@@ -249,28 +249,46 @@ routers.get('/delete/(:id)', function(req, res, next) {
 routers.post('/watson', function(req, res, next) {
     var message = req.body.message;
     var resp = res
-    watson.createSession({ assistantId: '7b514536-ce08-4103-8c72-f30feca0086c'})
-        .then((res) => {
-            console.log(message);
-            watson.message({
-                assistantId: assistant_id,
-                sessionId: res.result.session_id,
-                input: {
-                'message_type': 'text',
-                'text': message
-                }
-            }).then(response => {
-                resp.status(200).send({
-                    data: response.result,
-                });
-            }).catch(err => {
-                console.log(err);
+    if(req.body.session_id){
+        session_id = req.body.session_id;
+        console.log(session_id);
+        enviaMensagem(message, session_id);
+    }else{
+        session_id = null;
+        watson.createSession({ assistantId: '7b514536-ce08-4103-8c72-f30feca0086c'})
+            .then((res) => {
+                console.log(message);
+
+                session_id = res.result.session_id;
+                enviaMensagem(message, session_id)
+            }
+        ).catch(err => {
+            console.log(err);
+        });
+    }
+
+    function enviaMensagem(message, sessao){
+        console.log(sessao);
+        watson.message({
+            assistantId: assistant_id,
+            sessionId: sessao,
+            input: {
+            'message_type': 'text',
+            'text': message
+            }
+        }).then(response => {
+            resp.status(200).send({
+                data: response.result,
+                session_id:sessao,
             });
-        }
-    ).catch(err => {
-        console.log(err);
-    });
+        }).catch(err => {
+            console.log(err);
+        });
+    }
 });
+
+
+
 
 
 
