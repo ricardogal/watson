@@ -1,295 +1,141 @@
 const express = require('express');
 const routers = express.Router();
-const dbConn  = require('../lib/db');
 const crypto = require('crypto');
+const dbConn  = require('../lib/db');
 const watson = require('../lib/watson');
+const user = require('../repository/user-repository');
+const ticket = require('../repository/ticket-repository');
 var assistant_id = '7b514536-ce08-4103-8c72-f30feca0086c';
 
 
 // lista usuários
-routers.get('/users', function(req, res, next) {
-    dbConn.query('select * from users', (err, rows) => {
-        if (err){
-            res.status(500).send({
-                message: err,
-            });
-        }
-
-        res.status(200).send({
-            data: rows,
-        });
-    });
+routers.get('/user', function(req, res, next) {
+    user.list(res);
 });
+
+// get usuário
+routers.get('/user/(:id)', function(req, res, next) {
+    let id = req.params.id;
+    user.get(id, res);
+});
+
+//Insere
+routers.post('/user', function(req, res, next) {
+    console.log("criar")
+    user.create(req, res);
+});
+
+//Atualiza
+routers.put('/user/(:id)', function(req, res, next) {
+    let password = ""+req.body.password;
+    let register = ""+req.body.register;
+    let name     = ""+req.body.name;
+
+    let form_data = {
+        password: crypto.createHash('md5').update(password).digest("hex"),
+        register: register,
+        name: name,
+        id: req.params.id
+    }
+    user.update(form_data, res);
+});
+
 
 //login
 routers.post('/login', function(req, res, next) {
     let password = ""+req.body.password;
     let register = ""+req.body.register;
-
     let form_data = {
         password: crypto.createHash('md5').update(password).digest("hex"),
         register: register
     }
-console.log('select * from users where register = "'+form_data.register+'" and password = "'+form_data.password+'"');
-    dbConn.query('select * from users where register = "'+form_data.register+'" and password = "'+form_data.password+'"', (err, rows) => {
-        if (err){
-            res.status(500).send({
-                message: err,
-            });
-        }
 
-        res.status(200).send({
-            sucess: (rows).length == 1 ? true : false,
-            data: rows
-        });
-    });
+    user.login(form_data, res);
 });
-//lista tickets
+
+routers.delete('/user/(:id)', function(req, res, next) {
+    user.delete(req,res);
+});
+
+
+/***Tickets***/
 routers.get('/tickets', function(req, res, next) {
-    dbConn.query('select * from tickets', (err, rows) => {
-        if (err){
-            res.status(500).send({
-                message: err,
-            });
-        }
-
-        res.status(200).send({
-            data: rows,
-        });
-    });
+    ticket.list(res);
 });
 
-// display lit user's tickets
 routers.get('/tickets/(:idUser)', function(req, res, next) {
-
     let idUser = req.params.idUser;
-
-    dbConn.query('SELECT * FROM tickets WHERE idUser = ' + idUser, function(err, rows, fields) {
-        if (err){
-            res.status(500).send({
-                message: err,
-            });
-        }
-
-        res.status(200).send({
-            sucess: rows,
-        });
-    })
-})
-
-routers.post('/tickets', function(req, res, next) {
-    let title = req.body.title;
-    let description = req.body.description;
-    let status = req.body.status;
-    let idUser = req.body.idUser;
-    var form_data = {
-        title: title,
-        description: description,
-        status: status,
-        idUser:idUser
-    }
-
-    dbConn.query('INSERT INTO tickets SET ?', form_data, function(err, result) {
-        //if(err) throw err
-        if (err) {
-            res.status(500).send({
-                message: err,
-            });
-        } else {
-            res.status(201).send({
-                success: true,
-                message: 'Ticket criado com sucesso!',
-            });
-        }
-    })
-
+    ticket.listByUser(idUser, res);
 });
 
-routers.post('/users', function(req, res, next) {
-
-    let name = req.body.name;
-    let password = req.body.password;
-    let register = req.body.register;
-    let errors = false;
-
-    // res.status(201).send({
-    //     success: 'sucesso',
-    //     message: 'Usuário criado com sucesso!',
-    // });
-    if(name.length === 0 || register.length === 0) {
-        errors = true;
-    }
-
-    // if no error
-    if(!errors) {
-
-        var form_data = {
-            name: name,
-            password: crypto.createHash('md5').update(password).digest("hex"),
-            register: register
-        }
-
-        // insert query
-        dbConn.query('INSERT INTO users SET ?', form_data, function(err, result) {
-            //if(err) throw err
-            if (err) {
-                res.status(500).send({
-                    message: err,
-                });
-            } else {
-                res.status(201).send({
-                    success: true,
-                    message: 'Usuário criado com sucesso!',
-                });
-            }
-        });
-    }
-})
-
-// display edit book page
-routers.get('/edit/(:id)', function(req, res, next) {
-
+routers.delete('/tickets/(:id)', function(req, res, next) {
     let id = req.params.id;
-
-    dbConn.query('SELECT * FROM users WHERE id = ' + id, function(err, rows, fields) {
-        if(err) throw err
-
-        // if user not found
-        if (rows.length <= 0) {
-            req.flash('error', 'Book not found with id = ' + id)
-            res.redirect('/users')
-        }
-        // if book found
-        else {
-            //if(err) throw err
-            if (err) {
-                res.status(500).send({
-                    message: err,
-                });
-            } else {
-                res.status(200).send({
-                    success: true,
-                    message: 'Usuário criado com sucesso!',
-                });
-            }
-        }
-    })
-})
-
-// update book data
-routers.post('/update/:id', function(req, res, next) {
-
-    let id = req.params.id;
-    let name = req.body.name;
-    let author = req.body.author;
-    let errors = false;
-
-    if(name.length === 0 || author.length === 0) {
-        errors = true;
-
-        // set flash message
-        req.flash('error', "Please enter name and author");
-        // render to add.ejs with flash message
-        res.render('users/edit', {
-            id: req.params.id,
-            name: name,
-            author: author
-        })
-    }
-
-    // if no error
-    if( !errors ) {
-
-        var form_data = {
-            name: name,
-            author: author
-        }
-        // update query
-        dbConn.query('UPDATE users SET ? WHERE id = ' + id, form_data, function(err, result) {
-            //if(err) throw err
-            if (err) {
-                // set flash message
-                req.flash('error', err)
-                // render to edit.ejs
-                res.render('users/edit', {
-                    id: req.params.id,
-                    name: form_data.name,
-                    author: form_data.author
-                })
-            } else {
-                req.flash('success', 'Book successfully updated');
-                res.redirect('/users');
-            }
-        })
-    }
-})
-
-// delete book
-routers.get('/delete/(:id)', function(req, res, next) {
-
-    let id = req.params.id;
-
-    dbConn.query('DELETE FROM users WHERE id = ' + id, function(err, result) {
-        //if(err) throw err
-        if (err) {
-            // set flash message
-            req.flash('error', err)
-            // redirect to users page
-            res.redirect('/users')
-        } else {
-            // set flash message
-            req.flash('success', 'Book successfully deleted! ID = ' + id)
-            // redirect to users page
-            res.redirect('/users')
-        }
-    })
+    ticket.list(id, res);
 });
 
+//*** WATSON *****//
 
-routers.post('/watson', function(req, res, next) {
+routers.post('/watson', function(req, http_response, next) {
     var message = req.body.message;
-    var resp = res
+    var idUser = req.body.idUser;
+    var resp = http_response
     if(req.body.session_id){
         session_id = req.body.session_id;
-        console.log(session_id);
-        enviaMensagem(message, session_id);
+        enviaMensagem(message, session_id, http_response, idUser);
     }else{
         session_id = null;
         watson.createSession({ assistantId: '7b514536-ce08-4103-8c72-f30feca0086c'})
             .then((res) => {
-                console.log(message);
-
                 session_id = res.result.session_id;
-                enviaMensagem(message, session_id)
+                enviaMensagem(message, session_id, http_response, idUser);
             }
         ).catch(err => {
             console.log(err);
         });
     }
 
-    function enviaMensagem(message, sessao){
-        console.log(sessao);
+    function enviaMensagem(message, session_id, http_response, idUser){
+        console.log(session_id);
         watson.message({
             assistantId: assistant_id,
-            sessionId: sessao,
+            sessionId: session_id,
             input: {
-            'message_type': 'text',
-            'text': message
+                'message_type': 'text',
+                'text': message
             }
         }).then(response => {
-            resp.status(200).send({
-                data: response.result,
-                session_id:sessao,
-            });
+            let toProcess ={
+                'responseWatson': response.result,
+                'http_response': http_response,
+                'session_id': session_id,
+                'idUser': idUser,
+                'message': message
+            }
+            processResponse(toProcess);
         }).catch(err => {
             console.log(err);
         });
     }
+
+    function processResponse(toProcess){
+        if(toProcess.responseWatson.output.intents.length > 0){
+            if(toProcess.responseWatson.output.intents[0].intent == 'ListarTickets'){
+                return ticket.listByUser(toProcess.idUser, toProcess.http_response, toProcess);
+            }
+        }
+        if(toProcess.responseWatson.output.generic[0].text == "Muito obrigado, o ticket será aberto"){
+            console.log(toProcess.responseWatson.output.generic[0].text);
+            return ticket.create(toProcess);
+        }
+
+        http_response.status(200).send({
+            success: true,
+            result: toProcess.responseWatson,
+            data: [],
+            session_id: toProcess.session_id,
+            idUser: toProcess.idUser
+        });
+    }
 });
-
-
-
-
-
 
 module.exports = routers;
